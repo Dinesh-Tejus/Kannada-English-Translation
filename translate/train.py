@@ -2,6 +2,10 @@ import torch
 import torch.nn as nn
 import torch.functional as F
 
+from torch.utils.data import DataLoader, Dataset
+from torch.optim import Adam
+
+
 MAX_LENGTH = 20 # maximum length of sentences
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -84,3 +88,85 @@ class AttnDecoderRNN(nn.Module):
         output = self.out(output)
 
         return output, hidden, attn_weights
+
+
+
+class TranslationDataset(Dataset):
+    def __init__(self, source_sentences, target_sentences):
+        self.source_sentences = source_sentences
+        self.target_sentences = target_sentences
+
+    def __len__(self):
+        return len(self.source_sentences)
+
+    def __getitem__(self, index):
+        return self.source_sentences[index], self.target_sentences[index]
+
+
+
+# with open('data/train.en', 'r') as f:
+#     english_sentences = f.readlines()
+
+# eng_tokens = [word_tokenize(sent) for sent in english_sentences]
+
+# with open('data/train.kn', 'r') as f:
+#     kannada_sentences = f.readlines()
+# x = []
+# for i in kannada_sentences:
+#   x.append(i.strip("\n"))
+# kannada_sentences = x
+
+# kan_tokens = [indic_tokenize.trivial_tokenize(sent) for sent in kannada_sentences]
+
+with open('data/eng_tokens.txt', 'r') as f:
+    tokens = f.readlines()
+eng_vocab = []
+for i in tokens:
+  eng_vocab.append(i.strip('\n'))
+
+
+with open('data/kan_tokens.txt', 'r') as f:
+    tokens = f.readlines()
+kan_vocab = []
+for i in tokens:
+  kan_vocab.append(i.strip('\n'))
+
+
+
+eng_word2index = {word: index for index, word in enumerate(eng_vocab)}
+kan_word2index = {word: index for index, word in enumerate(kan_vocab)}
+
+eng_indices = [[eng_word2index[word] for word in sent] for sent in eng_tokens] 
+kan_indices = [[kan_word2index[word] for word in sent] for sent in kan_tokens]
+
+batch_size = 32
+dataset = TranslationDataset(kan_indices, eng_indices)
+dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+
+
+
+lr = 0.01
+epochs = 2
+hidden_size = 100
+encoder = EncoderRNN(input_size=len(kan_vocab), hidden_size=hidden_size).to(device)
+decoder = AttnDecoderRNN(hidden_size=hidden_size, output_size=len(eng_vocab)).to(device)
+optimizer = Adam(list(encoder.parameters()) + list(decoder.parameters()), lr=lr)
+criterion = nn.CrossEntropyLoss()
+
+
+
+# Training loop
+for epoch in range(epochs):
+    for i, (kan_batch,eng_batch) in enumerate(dataloader): # TO-DO - Need to pad the data
+        eng_batch = eng_batch.to(device)
+        kan_batch = kan_batch.to(device)
+
+        optimizer.zero_grad()
+
+        encoder_outputs, encoder_hidden = encoder(kan_batch)
+        decoder_outputs, decoder_hidden, attentions = decoder(encoder_outputs, encoder_hidden, target_tensor=eng_batch)
+
+        loss = criterion(decoder_outputs.view(-1, len(eng_vocab)), eng_batch.view(-1))
+        loss.backward()
+        optimizer.step()
