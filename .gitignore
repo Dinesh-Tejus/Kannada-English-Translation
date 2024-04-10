@@ -1,3 +1,5 @@
 translate/data/train.en
 translate/data/train.kn
+translate/data/eng_tokens.txt
+translate/data/kan_tokens.txt
 .DS_Store

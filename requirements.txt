@@ -1,2 +1,3 @@
+indic_nlp_library==0.92
 nltk==3.8.1
 torch==2.2.2
