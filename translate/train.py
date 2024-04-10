@@ -5,6 +5,8 @@ import torch.functional as F
 from torch.utils.data import DataLoader, Dataset
 from torch.optim import Adam
 
+from tqdm import tqdm, trange
+
 
 MAX_LENGTH = 20 # maximum length of sentences
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -118,21 +120,39 @@ class TranslationDataset(Dataset):
 
 # kan_tokens = [indic_tokenize.trivial_tokenize(sent) for sent in kannada_sentences]
 
+# get tokens from pre-processed files
 with open('data/eng_tokens.txt', 'r') as f:
     tokens = f.readlines()
-eng_vocab = []
-for i in tokens:
-  eng_vocab.append(i.strip('\n'))
+eng_tokens = []
+for x in trange(len(tokens), desc='get english tokens...'):
+    eng_tokens.append(tokens[x].strip('\n').split(' '))
+print(eng_tokens[0])
 
 
 with open('data/kan_tokens.txt', 'r') as f:
     tokens = f.readlines()
-kan_vocab = []
-for i in tokens:
-  kan_vocab.append(i.strip('\n'))
+kan_tokens = []
+for x in trange(len(tokens), desc='get kannada tokens...'):
+    kan_tokens.append(tokens[x].strip('\n').split(' '))
+print(kan_tokens[0])
 
+# get vocabulary
+eng_vocab = set()
+kan_vocab = set()
+for i in eng_tokens:
+  for j in i:
+    eng_vocab.add(j)
+eng_vocab = list(eng_vocab)
 
+for i in kan_tokens:
+  for j in i:
+    kan_vocab.add(j)
+kan_vocab = list(kan_vocab)
 
+print(eng_vocab[:10])
+print(kan_vocab[:10])
+
+# get index lists
 eng_word2index = {word: index for index, word in enumerate(eng_vocab)}
 kan_word2index = {word: index for index, word in enumerate(kan_vocab)}
 
@@ -154,10 +174,14 @@ decoder = AttnDecoderRNN(hidden_size=hidden_size, output_size=len(eng_vocab)).to
 optimizer = Adam(list(encoder.parameters()) + list(decoder.parameters()), lr=lr)
 criterion = nn.CrossEntropyLoss()
 
-
+print("training begin.")
 
 # Training loop
-for epoch in range(epochs):
+MODEL_SAVE_INTERVAL = 100 # save the model every so often
+losses = [] # average loss per epoch
+bar = trange(epochs, desc=f'')
+for epoch in bar:
+    epoch_loss = 0
     for i, (kan_batch,eng_batch) in enumerate(dataloader): # TO-DO - Need to pad the data
         eng_batch = eng_batch.to(device)
         kan_batch = kan_batch.to(device)
@@ -168,5 +192,13 @@ for epoch in range(epochs):
         decoder_outputs, decoder_hidden, attentions = decoder(encoder_outputs, encoder_hidden, target_tensor=eng_batch)
 
         loss = criterion(decoder_outputs.view(-1, len(eng_vocab)), eng_batch.view(-1))
+        epoch_loss += (loss.item()/len(eng_batch))
         loss.backward()
         optimizer.step()
+    losses.append(epoch_loss)
+    bar.set_description(f'loss: {epoch_loss}')
+
+    if epoch % MODEL_SAVE_INTERVAL == 0:
+        torch.save(encoder.state_dict(), f"encoder.pt")
+        torch.save(decoder.state_dict(), f"decoder.pt")
+
