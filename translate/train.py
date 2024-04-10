@@ -8,7 +8,7 @@ from torch.optim import Adam
 from tqdm import tqdm, trange
 
 
-MAX_LENGTH = 20 # maximum length of sentences
+MAX_LENGTH = 40 # maximum length of sentences
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class EncoderRNN(nn.Module):
@@ -105,6 +105,9 @@ class TranslationDataset(Dataset):
         return self.source_sentences[index], self.target_sentences[index]
 
 
+def pad_sequence(sequence, pad_value):
+  # Padding function to add pad_value to sequences until they reach max_len
+  return sequence + [pad_value] * (MAX_LENGTH - len(sequence))
 
 # with open('data/train.en', 'r') as f:
 #     english_sentences = f.readlines()
@@ -129,7 +132,7 @@ for x in trange(len(tokens), desc='get english tokens...'):
 print(eng_tokens[0])
 
 
-with open('data/kan_tokens.txt', 'r') as f:
+with open('data/kan_tokens.txt', 'r', encoding='utf-8') as f:
     tokens = f.readlines()
 kan_tokens = []
 for x in trange(len(tokens), desc='get kannada tokens...'):
@@ -158,6 +161,9 @@ kan_word2index = {word: index for index, word in enumerate(kan_vocab)}
 
 eng_indices = [[eng_word2index[word] for word in sent] for sent in eng_tokens] 
 kan_indices = [[kan_word2index[word] for word in sent] for sent in kan_tokens]
+
+eng_indices = [pad_sequence(sent, eng_word2index['<\s>']) for sent in eng_indices]
+kan_indices = [pad_sequence(sent, ['<\s>']) for sent in kan_indices]
 
 batch_size = 32
 dataset = TranslationDataset(kan_indices, eng_indices)
