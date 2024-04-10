@@ -202,3 +202,6 @@ for epoch in bar:
         torch.save(encoder.state_dict(), f"encoder.pt")
         torch.save(decoder.state_dict(), f"decoder.pt")
 
+torch.save(encoder.state_dict(), f"encoder_final.pt")
+torch.save(decoder.state_dict(), f"decoder_final.pt")
+
